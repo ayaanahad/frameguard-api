@@ -19,7 +19,6 @@ export default async function handler(req, res) {
     const xfoVal = xfo ? xfo.toLowerCase() : "";
     const cspVal = csp ? csp.toLowerCase() : "";
 
-    // 🔥 Fast block detection
     if (xfoVal.includes("deny") || xfoVal.includes("sameorigin")) {
       canEmbed = false;
     }
@@ -30,25 +29,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 🚀 If clearly blocked → stop
-    if (!canEmbed) {
-      return res.json({ canEmbed: false });
-    }
-
-    // 🔥 Call Railway (real detection)
-    let data = { canEmbed: true };
-
-    try {
-      const railway = await fetch(
-        `https://railway-iframe-check-api-production.up.railway.app/check?url=${encodeURIComponent(url)}`
-      );
-
-      data = await railway.json();
-    } catch {
-      data = { canEmbed: true };
-    }
-
-    return res.json(data);
+    return res.json({ canEmbed });
 
   } catch {
     return res.json({ canEmbed: true });
