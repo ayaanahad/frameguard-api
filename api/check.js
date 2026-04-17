@@ -16,21 +16,41 @@ export default async function handler(req, res) {
 
     let canEmbed = true;
 
-    // X-Frame-Options check
-    if (xfo && (xfo.includes("DENY") || xfo.includes("SAMEORIGIN"))) {
+    const xfoVal = xfo ? xfo.toLowerCase() : "";
+    const cspVal = csp ? csp.toLowerCase() : "";
+
+    // 🔥 Fast block detection
+    if (xfoVal.includes("deny") || xfoVal.includes("sameorigin")) {
       canEmbed = false;
     }
 
-    // CSP check
-    if (csp && csp.includes("frame-ancestors")) {
-      if (csp.includes("'none'") || csp.includes("'self'")) {
+    if (cspVal.includes("frame-ancestors")) {
+      if (cspVal.includes("'none'") || cspVal.includes("'self'")) {
         canEmbed = false;
       }
     }
 
-    return res.json({ canEmbed });
+    // 🚀 If clearly blocked → stop
+    if (!canEmbed) {
+      return res.json({ canEmbed: false });
+    }
 
-  } catch (e) {
-    return res.json({ canEmbed: true }); // safe fallback
+    // 🔥 Call Railway (real detection)
+    let data = { canEmbed: true };
+
+    try {
+      const railway = await fetch(
+        `https://railway-iframe-check-api-production.up.railway.app/check?url=${encodeURIComponent(url)}`
+      );
+
+      data = await railway.json();
+    } catch {
+      data = { canEmbed: true };
+    }
+
+    return res.json(data);
+
+  } catch {
+    return res.json({ canEmbed: true });
   }
 }
