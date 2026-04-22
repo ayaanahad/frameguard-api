@@ -9,7 +9,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Validate URL
     let target;
     try {
       target = new URL(url);
@@ -20,7 +19,6 @@ export default async function handler(req, res) {
       });
     }
 
-    // Use GET (not HEAD) for accurate headers after redirects
     const response = await fetch(target.toString(), {
       method: "GET",
       redirect: "follow",
@@ -37,43 +35,35 @@ export default async function handler(req, res) {
     const xfoVal = xfo.toLowerCase();
     const cspVal = csp.toLowerCase();
 
-    let canEmbed = true;
-    let confidence = "high"; // high | medium | low
-    let reason = "allowed";
+    let risk = "low"; // low | medium | high
+    let signals = [];
 
     // 🔴 Strong block signals
     if (xfoVal.includes("deny")) {
-      canEmbed = false;
-      reason = "xfo=deny";
-      confidence = "high";
+      risk = "high";
+      signals.push("xfo=deny");
     }
 
     if (cspVal.includes("frame-ancestors") && cspVal.includes("'none'")) {
-      canEmbed = false;
-      reason = "csp=none";
-      confidence = "high";
+      risk = "high";
+      signals.push("csp=none");
     }
 
-    // ⚠️ Weak / unreliable signals
-    else if (xfoVal.includes("sameorigin")) {
-      // Do NOT hard block — many sites still work
-      canEmbed = true;
-      reason = "xfo=sameorigin";
-      confidence = "low";
+    // ⚠️ Medium signals
+    if (xfoVal.includes("sameorigin")) {
+      risk = "medium";
+      signals.push("xfo=sameorigin");
     }
 
-    else if (cspVal.includes("frame-ancestors")) {
-      // Restricted but unknown (domain-specific rules)
-      canEmbed = false;
-      reason = "csp=restricted";
-      confidence = "medium";
+    if (cspVal.includes("frame-ancestors")) {
+      risk = "medium";
+      signals.push("csp=restricted");
     }
 
     return res.status(200).json({
       success: true,
-      canEmbed,
-      confidence,
-      reason,
+      risk,              // 🔥 IMPORTANT (not canEmbed)
+      signals,
       headers: {
         xFrameOptions: xfo || null,
         contentSecurityPolicy: csp || null
@@ -84,9 +74,8 @@ export default async function handler(req, res) {
   } catch (err) {
     return res.status(200).json({
       success: false,
-      canEmbed: false,
-      confidence: "low",
-      reason: "request_failed",
+      risk: "high",
+      signals: ["request_failed"],
       error: err.message
     });
   }
